@@ -1,33 +1,43 @@
-import tensorflow as tf
-import tensorflowjs as tfjs
+from tensorflow.keras.datasets import mnist
 from tensorflow import keras
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, Conv2D, MaxPooling2D, Flatten
+import tensorflowjs as tfjs
 
-# load the data
-(train_img,train_label),(test_img,test_label) = keras.datasets.mnist.load_data()
-train_img = train_img.reshape([-1, 28, 28, 1])
-test_img = test_img.reshape([-1, 28, 28, 1])
-train_img = train_img/255.0
-test_img = test_img/255.0
-train_label = keras.utils.to_categorical(train_label)
-test_label = keras.utils.to_categorical(test_label)
+# load and reshape data
+(X_train, y_train), (X_val, y_val) = mnist.load_data()
+X_train = X_train.reshape([-1, 28, 28, 1])
+X_val = X_val.reshape([-1, 28, 28, 1])
 
-# define the model architecture
-model = keras.Sequential([
-    keras.layers.Conv2D(32, (5, 5), padding="same", input_shape=[28, 28, 1]),
-    keras.layers.MaxPool2D((2,2)),
-    keras.layers.Conv2D(64, (5, 5), padding="same"),
-    keras.layers.MaxPool2D((2,2)),
-    keras.layers.Flatten(),
-    keras.layers.Dense(1024, activation='relu'),
-    keras.layers.Dropout(0.2),
-    keras.layers.Dense(10, activation='softmax')
+# normalize pixel vals
+X_train = X_train / 255
+X_val = X_val / 255
+
+# one-hot encode classes
+y_train = keras.utils.to_categorical(y_train)
+y_val = keras.utils.to_categorical(y_val)
+
+num_classes = y_train.shape[1]
+
+# initialize model
+model = Sequential([
+    Conv2D(30, (5, 5), input_shape=(28, 28, 1), activation="relu"),
+    MaxPooling2D(),
+    Conv2D(15, (3, 3), activation="relu"),
+    MaxPooling2D(),
+    Dropout(0.2),
+    Flatten(),
+    Dense(128, activation="relu"),
+    Dense(50, activation="relu"),
+    Dense(num_classes, activation="softmax")
 ])
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-# train the model
-model.fit(train_img,train_label, validation_data=(test_img,test_label), epochs=10)
-test_loss,test_acc = model.evaluate(test_img, test_label)
-print('Test accuracy:', test_acc)
+# train model
+model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
+model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=15, batch_size=200, verbose=2)
+val_loss, val_acc = model.evaluate(X_val, y_val)
+print("Validation loss:", val_loss)
+print("Validation accuracy:", val_acc)
 
 # save model as tfjs format
 tfjs.converters.save_keras_model(model, 'models')
