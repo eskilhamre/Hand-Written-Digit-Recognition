@@ -38,17 +38,18 @@ loadModel();
 
 // incremented each time mouse is pressed and moved on canvas
 let mouseMoveWhilePressedCount = 0;   // used to determine when prediction is going to be rerun
+let defaultPreds = [0,0,0,0,0,0,0,0,0];
 
 //---------------------
 // MOUSE DOWN function
 //---------------------
 $("#canvas").mousedown(function(e) {
 	var rect = canvas.getBoundingClientRect();
-	var mouseX = e.clientX- rect.left;;
-	var mouseY = e.clientY- rect.top;
+	var mouseX = e.clientX- rect.left;;	var mouseY = e.clientY- rect.top;
 	drawing = true;
 	addUserGesture(mouseX, mouseY);
 	drawOnCanvas();
+
 });
 
 //-----------------------
@@ -75,7 +76,7 @@ canvas.addEventListener("touchstart", function (e) {
 //---------------------
 // MOUSE MOVE function
 //---------------------
-$("#canvas").mousemove(function(e) {
+$("#canvas").mousemove(async function(e) {
 	if (drawing) {
 		var rect = canvas.getBoundingClientRect();
 		var mouseX = e.clientX- rect.left;;
@@ -84,13 +85,17 @@ $("#canvas").mousemove(function(e) {
 		drawOnCanvas();
 		console.log(`mouse move nr: ${mouseMoveWhilePressedCount}`)
 		mouseMoveWhilePressedCount++;
+
+		if (mouseMoveWhilePressedCount % 25 == 0) {
+			await makePredictionAndUpdateChart()
+		}
 	}
 });
 
 //---------------------
 // TOUCH MOVE function
 //---------------------
-canvas.addEventListener("touchmove", function (e) {
+canvas.addEventListener("touchmove", async function (e) {
 	if (e.target == canvas) {
     	e.preventDefault();
   	}
@@ -103,41 +108,52 @@ canvas.addEventListener("touchmove", function (e) {
 
 		addUserGesture(mouseX, mouseY, true);
 		drawOnCanvas();
+
+		console.log(`mouse move nr: ${mouseMoveWhilePressedCount}`)
+		mouseMoveWhilePressedCount++;
+
+		if (mouseMoveWhilePressedCount % 35 == 0) {
+			await makePredictionAndUpdateChart()
+		}
 	}
 }, false);
 
 //-------------------
 // MOUSE UP function
 //-------------------
-$("#canvas").mouseup(function(e) {
+$("#canvas").mouseup(async function(e) {
 	drawing = false;
+	await makePredictionAndUpdateChart()
 });
 
 //---------------------
 // TOUCH END function
 //---------------------
-canvas.addEventListener("touchend", function (e) {
+canvas.addEventListener("touchend", async function (e) {
 	if (e.target == canvas) {
     	e.preventDefault();
   	}
 	drawing = false;
+	await makePredictionAndUpdateChart()
 }, false);
 
 //----------------------
 // MOUSE LEAVE function
 //----------------------
-$("#canvas").mouseleave(function(e) {
+$("#canvas").mouseleave(async function(e) {
 	drawing = false;
+	await makePredictionAndUpdateChart()
 });
 
 //-----------------------
 // TOUCH LEAVE function
 //-----------------------
-canvas.addEventListener("touchleave", function (e) {
+canvas.addEventListener("touchleave", async function (e) {
 	if (e.target == canvas) {
     	e.preventDefault();
   	}
 	drawing = false;
+	await makePredictionAndUpdateChart()
 }, false);
 
 //--------------------
@@ -181,7 +197,10 @@ $("#clear-button").click(async function () {
 	clickY = [];
 	clickD = [];
 	$(".prediction-text").empty();
-	$("#result_box").addClass('d-none');
+	mouseMoveWhilePressedCount = 0;
+	updateChart(defaultPreds)
+	// TODO fill in empty values on chart instead
+	// $("#result_box").addClass('d-none');
 });
 
 //-------------------------------------
@@ -217,7 +236,7 @@ function preprocessCanvas(image) {
 //--------------------------------------------
 // predict function 
 //--------------------------------------------
-$("#predict-button").click(async function () {
+async function makePredictionAndUpdateChart() {
 	// preprocess canvas
 	let tensor = preprocessCanvas(canvas);
 
@@ -228,21 +247,18 @@ $("#predict-button").click(async function () {
 	let predictions = Array.from(raw_predictions);
 
 	// display the predictions in chart
-	$("#result_box").removeClass('d-none');
-	displayChart(predictions);
+	updateChart(predictions);
 	displayLabel(predictions);
 
 	console.log(`results from prediction: ${predictions}`);
-});
+}
 
 //------------------------------
 // Chart to display predictions
 //------------------------------
-let chart = "";
-
-function loadChart(predictions) {
-	var ctx = document.getElementById('chart_box').getContext('2d');
-	chart = new Chart(ctx, {
+let chart = new Chart(
+	document.getElementById('chart_box').getContext('2d'),
+	{
 	    // The type of chart we want to create
 	    type: 'bar',
 
@@ -253,29 +269,27 @@ function loadChart(predictions) {
 	            label: "Model predictions",
 	            backgroundColor: '#f50057',
 	            borderColor: 'rgb(255, 99, 132)',
-	            data: predictions,
+	            data: defaultPreds,
 	        }]
 	    },
 
 	    // Configuration options go here
-	    options: {}
-	});
-}
-
-//----------------------------
-// display chart with updated
-// drawing from canvas
-//----------------------------
-let firstTime = 0;
-
-function displayChart(predictions) {
-	if (firstTime === 0) {
-		loadChart(predictions);
-		firstTime = 1;
-	} else {
-		chart.destroy();
-		loadChart(predictions);
+	    options: {
+	    	scales: {
+	    		y: {
+	    			beginAtZero: true,
+					max: 1.0
+	    		}
+			}
+		}
 	}
+)
+
+function updateChart(predictions) {
+	chart.data.datasets.forEach((dataset) => {
+		dataset.data = predictions
+	})
+	chart.update();
 	document.getElementById('chart_box').style.display = "block";
 }
 
